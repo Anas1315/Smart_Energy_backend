@@ -2,11 +2,17 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
 function generateToken(user) {
-  return jwt.sign(
-    { id: user.id, role: user.role },
-    process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-  );
+  try {
+    const secret = process.env.JWT_SECRET || 'fallback_secret_change_me_in_prod';
+    return jwt.sign(
+      { id: user.id, role: user.role },
+      secret,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
+  } catch (err) {
+    console.error('[AUTH] Token generation failed:', err);
+    throw new Error('Token generation failed');
+  }
 }
 
 const authController = {
