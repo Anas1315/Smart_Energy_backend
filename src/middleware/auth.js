@@ -13,7 +13,8 @@ function authenticate(req, res, next) {
 
   const token = header.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const secret = process.env.JWT_SECRET || 'fallback_secret_change_me_in_prod';
+    const decoded = jwt.verify(token, secret);
     const user = User.findById(decoded.id);
     if (!user) {
       return res.status(401).json({ error: 'User not found' });
@@ -37,7 +38,8 @@ function optionalAuth(req, _res, next) {
   if (header && header.startsWith('Bearer ')) {
     try {
       const token = header.split(' ')[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const secret = process.env.JWT_SECRET || 'fallback_secret_change_me_in_prod';
+      const decoded = jwt.verify(token, secret);
       req.user = User.findById(decoded.id);
     } catch {
       // Ignore — no auth is fine
