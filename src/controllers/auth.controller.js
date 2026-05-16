@@ -118,6 +118,10 @@ const authController = {
     if (!isValid) return res.status(401).json({ error: 'Invalid or expired verification code' });
 
     const user = User.findById(user_id);
+    
+    // Mark as verified since they passed 2FA
+    User.updateVerified(user.id, 1);
+    
     User.logLogin(user.id, req.ip, req.get('user-agent'));
     const token = generateToken(user);
     res.json({ user, token });
@@ -126,11 +130,13 @@ const authController = {
   // POST /api/auth/forgot-password
   forgotPassword(req, res) {
     const { email, phone } = req.body;
-    const user = email ? User.findByEmail(email) : null; // In real app, search by phone too
+    let user = null;
+    
+    if (email) user = User.findByEmail(email);
+    if (!user && phone) user = User.findByPhone(phone);
     
     if (!user) {
-      // Don't reveal if user exists for security, just say "if account exists..."
-      return res.json({ message: 'If an account matches, a reset code has been sent.' });
+      return res.status(404).json({ error: 'No account found with this email or phone number' });
     }
 
     const otp = User.generateOTP(user.id, 'reset');

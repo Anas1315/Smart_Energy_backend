@@ -35,6 +35,10 @@ const User = {
     return db.prepare('SELECT * FROM users WHERE username = ?').get(username);
   },
 
+  findByPhone(phone) {
+    return db.prepare('SELECT * FROM users WHERE phone_number = ?').get(phone);
+  },
+
   // ========== LIST ==========
   findAll() {
     return db.prepare('SELECT id, username, email, role, is_active, created_at FROM users ORDER BY created_at DESC').all();
@@ -85,10 +89,9 @@ const User = {
   // ========== OTP & VERIFICATION ==========
   generateOTP(user_id, type = '2fa') {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expires_at = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 mins
     
     db.prepare('DELETE FROM verification_codes WHERE user_id = ? AND type = ?').run(user_id, type);
-    db.prepare('INSERT INTO verification_codes (user_id, code, type, expires_at) VALUES (?, ?, ?, ?)').run(user_id, code, type, expires_at);
+    db.prepare("INSERT INTO verification_codes (user_id, code, type, expires_at) VALUES (?, ?, ?, datetime('now', '+10 minutes'))").run(user_id, code, type);
     
     console.log(`\n🔑 [OTP] Sent to user ${user_id}: ${code} (Type: ${type})`);
     return code;
