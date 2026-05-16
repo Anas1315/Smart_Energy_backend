@@ -61,6 +61,7 @@ energy.startOfflineDetection();
 // ========== START SERVER ==========
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
+  console.log(`[STARTUP] Server is listening on 0.0.0.0:${PORT}`);
   console.log('\n╔════════════════════════════════════════════════════════════╗');
   console.log('║   SMART ENERGY CONTROLLER v4.0 — BACKEND WITH AUTH        ║');
   console.log('╠════════════════════════════════════════════════════════════╣');
@@ -75,4 +76,12 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('║     - Real-time Socket.IO                                   ║');
   console.log('║     - ESP32 Integration                                     ║');
   console.log('╚════════════════════════════════════════════════════════════╝\n');
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception thrown:', err);
 });
