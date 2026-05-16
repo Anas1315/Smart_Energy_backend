@@ -1,5 +1,9 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { OAuth2Client } = require('google-auth-library');
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 function generateToken(user) {
   try {
@@ -54,8 +58,12 @@ const authController = {
     if (password.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
+    if (!User.isRealEmail(email)) {
+      return res.status(400).json({ error: 'Please use a valid personal email (Gmail, Yahoo, Outlook, etc.)' });
+    }
     try {
-      const user = User.create({ username, email, password, role: 'user' });
+      const { phone_number } = req.body;
+      const user = User.create({ username, email, password, phone_number, role: 'user' });
       const token = generateToken(user);
       res.status(201).json({ user, token });
     } catch (err) {
@@ -82,11 +90,107 @@ const authController = {
     if (!User.verifyPassword(password, user.password)) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+
+    // Check for 2FA
+    if (user.two_factor_enabled) {
+      const otp = User.generateOTP(user.id, '2fa');
+      // In real life, you'd send this via SMS/Email here
+      return res.json({ 
+        requires_2fa: true, 
+        user_id: user.id,
+        message: 'A verification code has been sent to your registered device' 
+      });
+    }
+
     // Log the login
     User.logLogin(user.id, req.ip, req.get('user-agent'));
     const token = generateToken(user);
     const { password: _, ...safeUser } = user;
     res.json({ user: safeUser, token });
+  },
+
+  // POST /api/auth/verify-2fa
+  verify2FA(req, res) {
+    const { user_id, code } = req.body;
+    if (!user_id || !code) return res.status(400).json({ error: 'user_id and code are required' });
+
+    const isValid = User.verifyOTP(user_id, code, '2fa');
+    if (!isValid) return res.status(401).json({ error: 'Invalid or expired verification code' });
+
+    const user = User.findById(user_id);
+    User.logLogin(user.id, req.ip, req.get('user-agent'));
+    const token = generateToken(user);
+    res.json({ user, token });
+  },
+
+  // POST /api/auth/forgot-password
+  forgotPassword(req, res) {
+    const { email, phone } = req.body;
+    const user = email ? User.findByEmail(email) : null; // In real app, search by phone too
+    
+    if (!user) {
+      // Don't reveal if user exists for security, just say "if account exists..."
+      return res.json({ message: 'If an account matches, a reset code has been sent.' });
+    }
+
+    const otp = User.generateOTP(user.id, 'reset');
+    res.json({ 
+      message: 'Reset code sent successfully',
+      user_id: user.id 
+    });
+  },
+
+  // POST /api/auth/reset-password
+  resetPassword(req, res) {
+    const { user_id, code, new_password } = req.body;
+    if (!user_id || !code || !new_password) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    const isValid = User.verifyOTP(user_id, code, 'reset');
+    if (!isValid) return res.status(401).json({ error: 'Invalid or expired reset code' });
+
+    User.updatePassword(user_id, new_password);
+    res.json({ message: 'Password reset successfully. You can now login.' });
+  },
+
+  // POST /api/auth/google-login
+  async googleLogin(req, res) {
+    const { idToken } = req.body;
+    if (!idToken) return res.status(400).json({ error: 'idToken is required' });
+
+    try {
+      const ticket = await googleClient.verifyIdToken({
+        idToken,
+        audience: GOOGLE_CLIENT_ID,
+      });
+      const payload = ticket.getPayload();
+      const { email, name, sub: google_id } = payload;
+
+      let user = User.findByEmail(email);
+      if (!user) {
+        // Create user if not exists
+        user = User.create({ 
+          username: name.replace(/\s+/g, '').toLowerCase() + Math.floor(Math.random() * 1000),
+          email, 
+          password: Math.random().toString(36).slice(-12), // Random password for social login
+          role: 'user' 
+        });
+        User.updateVerified(user.id, 1); // Google accounts are pre-verified
+      }
+
+      if (!user.is_active) {
+        return res.status(403).json({ error: 'Account deactivated. Contact admin.' });
+      }
+
+      User.logLogin(user.id, req.ip, req.get('user-agent'));
+      const token = generateToken(user);
+      const { password: _, ...safeUser } = user;
+      res.json({ user: safeUser, token });
+    } catch (err) {
+      console.error('Google Auth Error:', err);
+      res.status(401).json({ error: 'Google authentication failed' });
+    }
   },
 
   // GET /api/auth/me — Get current user profile

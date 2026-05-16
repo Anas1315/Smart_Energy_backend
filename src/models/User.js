@@ -4,20 +4,27 @@ const bcrypt = require('bcryptjs');
 const SALT_ROUNDS = 10;
 
 const User = {
+  // ========== HELPERS ==========
+  isRealEmail(email) {
+    const realDomains = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'icloud.com', 'me.com', 'live.com'];
+    const domain = email.split('@')[1]?.toLowerCase();
+    return realDomains.includes(domain);
+  },
+
   // ========== CREATE ==========
-  create({ username, email, password, role = 'user', created_by = null }) {
+  create({ username, email, password, phone_number = null, role = 'user', created_by = null }) {
     const hash = bcrypt.hashSync(password, SALT_ROUNDS);
     const stmt = db.prepare(`
-      INSERT INTO users (username, email, password, role, created_by)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO users (username, email, phone_number, password, role, created_by)
+      VALUES (?, ?, ?, ?, ?, ?)
     `);
-    const result = stmt.run(username, email, hash, role, created_by);
+    const result = stmt.run(username, email, phone_number, hash, role, created_by);
     return this.findById(result.lastInsertRowid);
   },
 
   // ========== FIND ==========
   findById(id) {
-    return db.prepare('SELECT id, username, email, role, is_active, created_by, created_at FROM users WHERE id = ?').get(id);
+    return db.prepare('SELECT id, username, email, phone_number, role, is_active, is_verified, two_factor_enabled, created_by, created_at FROM users WHERE id = ?').get(id);
   },
 
   findByEmail(email) {
@@ -74,6 +81,39 @@ const User = {
 
   getLoginHistory(user_id, limit = 10) {
     return db.prepare('SELECT * FROM login_history WHERE user_id = ? ORDER BY logged_at DESC LIMIT ?').all(user_id, limit);
+  },
+  // ========== OTP & VERIFICATION ==========
+  generateOTP(user_id, type = '2fa') {
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expires_at = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 mins
+    
+    db.prepare('DELETE FROM verification_codes WHERE user_id = ? AND type = ?').run(user_id, type);
+    db.prepare('INSERT INTO verification_codes (user_id, code, type, expires_at) VALUES (?, ?, ?, ?)').run(user_id, code, type, expires_at);
+    
+    console.log(`\n🔑 [OTP] Sent to user ${user_id}: ${code} (Type: ${type})`);
+    return code;
+  },
+
+  verifyOTP(user_id, code, type) {
+    const row = db.prepare(`
+      SELECT * FROM verification_codes 
+      WHERE user_id = ? AND code = ? AND type = ? AND expires_at > datetime('now')
+    `).get(user_id, code, type);
+    
+    if (row) {
+      db.prepare('DELETE FROM verification_codes WHERE id = ?').run(row.id);
+      return true;
+    }
+    return false;
+  },
+
+  updatePassword(id, newPassword) {
+    const hash = bcrypt.hashSync(newPassword, SALT_ROUNDS);
+    db.prepare("UPDATE users SET password = ?, updated_at = datetime('now') WHERE id = ?").run(hash, id);
+  },
+
+  updateVerified(id, is_verified) {
+    db.prepare("UPDATE users SET is_verified = ?, updated_at = datetime('now') WHERE id = ?").run(is_verified ? 1 : 0, id);
   },
 };
 
