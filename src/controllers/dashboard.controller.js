@@ -22,9 +22,25 @@ const dashboardController = {
   // POST /api/command
   sendCommand(req, res) {
     const { type, value } = req.body;
+    const userRole = req.user?.role;
+    const isAdmin = userRole === 'admin' || userRole === 'master_admin';
+
+    // List of "Complex" commands restricted to Admins only
+    const complexCommands = [
+      'LDR_SUN_THRESH', 
+      'LDR_DARK_THRESH', 
+      'DAY_START', 
+      'DAY_END', 
+      'LDR_ENABLED'
+    ];
+
+    if (complexCommands.includes(type) && !isAdmin) {
+      return res.status(403).json({ error: 'Access denied: Admin role required for complex settings' });
+    }
+
     energy.pushCommand({ type, value });
-    console.log(`\n🌐 [WEB] Command sent: ${type} = ${value}`);
-    energy.addEvent('info', `Command: ${type} = ${value ? 'ON' : 'OFF'}`, 'User initiated');
+    console.log(`\n🌐 [WEB/APP] Command sent by ${userRole}: ${type} = ${value}`);
+    energy.addEvent('info', `Command: ${type} = ${value}`, `Initiated by ${userRole}`);
 
     if (type === 'USER_MODE') {
       const modes = { 1: 'HOME', 2: 'SAVING', 3: 'PERFORMANCE' };

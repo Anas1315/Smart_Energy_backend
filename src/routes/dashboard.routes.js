@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const dash = require('../controllers/dashboard.controller');
 const { authenticate } = require('../middleware/auth');
+const { roleCheck } = require('../middleware/roleCheck');
 
 // All dashboard routes require authentication
 router.use(authenticate);
@@ -16,7 +17,7 @@ router.get('/user-mode', dash.userMode);
 router.get('/hourly-data', dash.hourlyData);
 router.get('/history', dash.history);
 router.post('/command', dash.sendCommand);
-router.delete('/clear-events', dash.clearEvents);
+router.delete('/clear-events', roleCheck('admin', 'master_admin'), dash.clearEvents);
 router.get('/health', dash.health);
 
 module.exports = router;
