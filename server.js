@@ -18,9 +18,9 @@ const io = socketIo(server, {
 // ========== MIDDLEWARE ==========
 app.use(cors());
 app.use(express.json());
-// ========== SERVE FRONTEND ==========
-const frontendPath = path.join(__dirname, '..', 'smart-energy-frontend', 'dist');
-app.use(express.static(frontendPath));
+
+// (Frontend is hosted separately on Render)
+
 
 // ========== ROUTES ==========
 const authRoutes      = require('./src/routes/auth.routes');
@@ -37,11 +37,17 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/esp32', esp32Routes);
 app.use('/api',       dashboardRoutes);
 
-// Catch-all route to serve React's index.html (SPA support)
-app.get('*', (req, res) => {
-  // If request is for an API, don't serve index.html
-  if (req.url.startsWith('/api')) return res.status(404).json({ error: 'Not Found' });
-  res.sendFile(path.join(frontendPath, 'index.html'));
+// Default Route
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'Smart Energy API is running', 
+    version: '4.0',
+    endpoints: ['/api/auth', '/api/admin', '/api/esp32']
+  });
+});
+
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not Found' });
 });
 
 // ========== SOCKET.IO ==========
