@@ -27,8 +27,8 @@ let dailyStats = {
   wapdaUsageHours: 0, loadOnHours: 0, solarSavingHours: 0,
   totalSwitches: 0, peakPower: 0, voltageSum: 0, voltageCount: 0,
   energyGenerated: 0, energyConsumed: 0,
-  unitsConsumed: '0', unitsSaved: '0',
-  costSaved: '0', costUsed: '0',
+  unitsConsumed: '0.00', unitsSaved: '0.00',
+  costSaved: '0.00', costUsed: '0.00',
   lastWapdaOnTime: null, lastWapdaOffTime: null,
   lastLoadOnTime: null, lastLoadOffTime: null,
 };
