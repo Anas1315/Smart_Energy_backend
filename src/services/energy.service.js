@@ -160,7 +160,6 @@ module.exports = {
 
     esp32Data.lastSeen = now;
     esp32Data.esp32Online = true;
-    lastDeviceIP = reqIP; // The device sending Status is the "Master"
 
     // EMA Smoothing for noise reduction (alpha = 0.3)
     if (body.voltage !== undefined && body.voltage > 0) {
@@ -240,12 +239,6 @@ module.exports = {
   },
 
   processESP32Data: (body, reqIP) => {
-    // Ignore Data updates from other IPs if we have a Master device
-    if (lastDeviceIP && reqIP !== lastDeviceIP) {
-      // Optional: console.log(`⚠️  Ignoring Data update from secondary IP: ${reqIP}`);
-      return;
-    }
-
     const now = Date.now();
     let timeDeltaHours = (now - esp32Data.lastSeen) / (1000 * 3600);
     if (timeDeltaHours > 1 || timeDeltaHours < 0) timeDeltaHours = 5 / 3600;
